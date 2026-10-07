@@ -94,3 +94,22 @@ python tools/reproduce_legacy.py "examples/한글 예제.cpp"
 ```
 
 `output/legacy/run-.../` 아래에 `hw.ps`, `hw.pdf`, 변환 로그를 보존합니다. 이 도구는 제출 디렉터리를 사용하지 않습니다. 2026-09-30 사용자가 학교 서버에서 이 명령을 실행했고, 제공한 PDF와 PS에서 기존 방식의 한글 처리 문제를 확인했습니다. 이후 같은 Enscript 버전을 로컬 임시 경로에 빌드해 설정 변경을 PS 출력 단계까지 시험했습니다. 서버 생성 개선 PDF의 한글 출력도 확인했으며, 환경별 증거와 한계는 `REPORT.md`에 기록했습니다.
+
+## 4번째 개발: 기존 Noto 글꼴 비교 시험
+
+2026-10-07 로컬에서 학교 Noto Sans CJK Regular TTC의 사본을 원래 CFF 형식 그대로 사용해 `Pango/Cairo → PDF`와 `Pango/Cairo → PS → ps2pdf`를 비교했습니다. 이 시험은 현재 `turnin_demo` 생성기를 교체하지 않는 작은 실험입니다. 학교 서버의 파일이나 설치 패키지는 변경하지 않았습니다.
+
+두 PDF 모두 한 페이지의 한글 화면 출력은 정상이었습니다. 동일한 6개 입력 행을 pypdf와 Poppler로 추출한 결과, 직접 PDF는 6/6, PS 경유 PDF는 3/6만 정확히 일치했습니다. PS 경유 결과에서는 일부 공백·콜론·마침표의 문자 매핑이 누락됐습니다. 상세 근거와 한계는 [REPORT.md의 9절](REPORT.md#9-4번째-개발-기존-noto-글꼴의-로컬-비교-시험)을 참고하세요.
+
+로컬에 준비한 글꼴 사본과 Ghostscript 9.50을 재사용하는 명령:
+
+```bash
+python3 tools/probe_noto_ps.py \
+  --output output/pdf/noto-probe \
+  --font-dir output/noto-probe/fonts \
+  --ps2pdf output/noto-probe/deps/ghostscript-9.50-local/bin/ps2pdf
+```
+
+`pango-view`, `fc-match`, `gs`, `ps2pdf`가 필요합니다. 시스템에 해당 Noto 글꼴이 설치돼 있다면 `--font-dir`를 생략할 수 있습니다. 지정한 글꼴 폴더는 시험 프로세스에서만 참조하며 시스템에 글꼴을 설치하지 않습니다. 학교에는 당시 `pango-view` 명령이 없었으므로 위 명령을 바로 실행할 수 있다고 보장하지 않습니다.
+
+명령은 `output/pdf/noto-probe/`에 `noto-direct.pdf`, `noto-via-ps.pdf`, `noto.ps`, `input.markup`, `probe.json`을 생성합니다. `verification.json`은 이번에 별도로 수행한 추출·화면 검토 기록이며, 이 명령이 자동 생성하지 않습니다. 글꼴 사본과 로컬 빌드 의존성·생성 결과는 모두 Git에서 제외되는 `output/` 아래에 둡니다. 이 6행 시험은 기존 학교 양식, 긴 소스, 여러 페이지, 운영 제출 연동 검증을 대신하지 않습니다.

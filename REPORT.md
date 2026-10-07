@@ -1,6 +1,6 @@
 # 과제 제출 PDF의 한글 표시 오류 분석 및 로컬 시연 보고서
 
-작성일: 2026-09-30 / 최종 갱신: 2026-10-01
+작성일: 2026-09-30 / 최종 갱신: 2026-10-07
 
 대상: 학교 서버의 `turnin` Python 제출 스크립트, 기존·개선 PDF 및 기존 방식의 PostScript 출력
 
@@ -331,3 +331,42 @@ PYTHONPATH="$PWD/output/server-check/test-deps" /usr/bin/python3 -m unittest dis
 양식 수정본의 18개 자동 테스트 로그와 `./examples`로 생성한 `school-format.pdf` 두 페이지를 확인했다. 포함 예제와 출력의 내용 대조도 완료했다. 이전 `assignment.pdf`는 짧은 주석 샘플이므로 실제 과제 전체에 대한 추가 근거로 확대하지 않는다. 이후 코드가 바뀌어 재검증할 때에는 테스트 로그의 마지막 요약과 실패·오류 메시지, 변경된 출력 PDF를 함께 확인한다.
 
 이번 결과로 **현재 생성 모듈이 학교 환경과 확인한 입력에서 동작한다는 근거**가 확보됐다. 실제 제출 경로의 복사·권한·복구·겹치는 재제출 검증은 운영 연결 패치를 준비한 뒤 7.2절의 별도 테스트 경로에서 진행한다. 이 1차 테스트만으로 운영 배포 완료로 표시하지 않는다.
+
+
+## 9. 4번째 개발: 기존 Noto 글꼴의 로컬 비교 시험
+
+### 9.1 학교 글꼴을 확인한 결과
+
+2026-10-07 읽기 전용 SSH 조회에서 학교의 `NotoSansCJK-Regular.ttc`와 `NotoSansCJK-Bold.ttc`를 확인했다. 각각의 한국어 face는 1, 한국어 Mono face는 6이며, 내부 sfnt 태그는 `OTTO`, 윤곽 데이터는 CFF다. 학교 ReportLab 3.5.34의 `TTFont`에 두 파일의 해당 face를 등록하려고 하면 `postscript outlines are not supported` 오류가 발생했다. 글꼴 이름이나 한글 자체의 미지원이 아니라 현재 등록 방식과 파일 형식의 불일치다.
+
+기존 Noto를 다른 렌더러에서 사용하는 가능성을 확인하기 위해 Regular 파일의 사본만 로컬로 가져왔다. SHA-256은 서버 파일과 동일한 `5dcd1c336cc9344cb77c03a0cd8982ca8a7dc97d620fd6c9c434e02dcb1ceeb3`이다. 이 파일을 TTF로 변환하거나 시스템에 설치하지 않았다. 학교 서버의 파일·패키지는 변경하지 않았다.
+
+### 9.2 비교 방법과 실제 결과
+
+`tools/probe_noto_ps.py`는 동일한 가짜 입력 6행과 동일한 Pango 옵션을 사용한다. 제목은 Noto Sans CJK KR, 본문은 Noto Sans Mono CJK KR로 지정하고 Fontconfig의 선택 결과 및 PDF에 실제 포함된 글꼴을 확인했다. 출력 대상만 직접 PDF와 PS로 바꾼 뒤, PS를 Ghostscript 9.50의 `ps2pdf`로 변환했다.
+
+환경은 macOS arm64, Pango 1.58.2, Cairo 1.18.4, Ghostscript 9.50이다. Ghostscript는 [공식 9.50 배포본](https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/tag/gs950)을 로컬 시험 폴더에 빌드했다. 최신 macOS SDK용 호환 빌드 옵션을 사용했으며, 빌드 명령·배포본 해시·로그는 `output/noto-probe/deps/`에 보존했다. 버전이 같다는 것은 학교 Ubuntu 실행 환경 전체가 같다는 뜻이 아니다.
+
+| 항목 | Pango/Cairo 직접 PDF | Pango/Cairo PS → ps2pdf |
+| --- | --- | --- |
+| PDF 생성 | 성공 | 성공, Producer `GPL Ghostscript 9.50` |
+| 페이지 | 842 × 595pt, 1쪽 | 842 × 595pt, 1쪽 |
+| 이미지 검토 | 전체 페이지 한글 정상, 잘림·겹침 없음 | 전체 페이지 한글 정상, 잘림·겹침 없음 |
+| 입력 6행의 pypdf 정확 일치 | 6/6 | 3/6 |
+| 입력 6행의 Poppler 정확 일치 | 6/6 | 3/6 |
+| 실제 사용 글꼴 | Noto KR/Mono KR, 포함됨 | Noto에서 만든 PS 부분 글꼴, 포함됨 |
+| 출력 크기 | 265,704바이트 | 14,813바이트 |
+
+두 PDF에 ToUnicode가 존재하지만, PS 경유 결과에서는 일부 매핑이 누락됐다. PS의 `/g8`, `/g25`, `/g38`에는 각각 공백, 콜론, 마침표라는 Unicode 단서가 없고, 변환 PDF의 해당 문자 매핑도 빠져 있다. pypdf와 Poppler의 대체 해석은 다르지만 같은 위치의 오류를 확인했다. 화면이 정상이라는 사실과 검색·복사에 필요한 문자 정보가 보존됐다는 사실은 구분해야 한다. 이 결과를 Ghostscript 전체의 한글 지원 불가로 일반화하지 않는다.
+
+PDF·PS·입력·버전 기록은 `output/pdf/noto-probe/`에 보존한다. `verification.json`에 각 PDF의 해시, 실제 추출 텍스트, 행별 일치 여부, 글꼴 포함 여부와 화면 검토 결과를 기록했다. 이 절의 결과는 두 도구에서 실제 추출해 비교한 기록이며, 모든 PDF 뷰어에서 검색·클립보드 복사를 직접 시험했다는 뜻은 아니다.
+
+### 9.3 판단과 다음 검증 범위
+
+기존 Noto CFF 파일을 추가 TTF 없이 사용하는 것은 로컬에서 가능했다. 직접 PDF는 이번 입력의 시각 출력과 문자 보존을 모두 통과했으며, PS 경유는 시각 출력만 통과했다. 기존 글꼴 재사용을 우선한다면 Pango/Cairo 직접 PDF를 다음 비교 후보로 삼을 수 있다. PS 경유를 선택하려면 문자 매핑 보존 방법의 추가 검증이 필요하다. 현재 ReportLab 생성기는 기준 결과로 유지한다.
+
+이 도구는 렌더링 비교를 위한 75줄의 실험 스크립트이며 학교 제출용 생성 모듈이 아니다. `pango-view`와 `fc-match` 외부 명령을 사용하고, 학교에는 당시 `pango-view`가 없었다. 학교의 Pango/PangoCairo typelib, Python GI-Cairo 연결 및 Cairo의 출력 지원도 아직 확인하지 않았다. 기존 `cairo`·`gi` 설치 여부만으로 추가 패키지 없이 운영할 수 있다고 판단하지 않는다. [Pango/Cairo](https://docs.gtk.org/PangoCairo/pango_cairo.html), [Cairo PS 출력](https://www.cairographics.org/manual/cairo-PostScript-Surfaces.html), [FreeType의 CFF 지원](https://freetype.org/freetype2/docs/index.html)
+
+현재 생성기의 18개 검사 결과를 이 대안에 적용하지 않는다. 학교 2단 양식, 문법 강조, 긴 줄, 여러 파일·페이지, 실패 시 이전 PDF 보존은 이 실험의 범위 밖이다. 본 생성기와 제출 모듈을 수정하지 않았으므로 같은 18개 검사를 반복하지 않았다. 이후 대안을 실제 생성기로 구현하면 해당 동작을 다시 검증해야 한다.
+
+추가 TTF를 선택하는 경우에도 운영 프로그램의 공용 경로에 한 번 배포하면 되므로 사용자별 복제는 필수가 아니다. 글꼴 배포량뿐 아니라 수정·검증·유지보수 범위를 함께 비교한다. 비교 기간에는 두 결과를 보존하되 운영 경로는 검증 후 하나를 선택하는 방향을 권한다.
