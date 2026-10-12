@@ -1,115 +1,130 @@
-# Turnin 한글 PDF 로컬 시연
+# Turnin Hangul PDF
 
-학교 과제 제출 스크립트에서 확인한 `소스 → enscript → PostScript → ps2pdf` 흐름의 한글 깨짐을 개선하기 위한 독립적인 검증 프로젝트입니다. UTF-8 소스로부터 한글 글꼴이 포함된 PDF를 만들고, 가상 제출 디렉터리에 원본 소스와 검증 영수증을 보관합니다.
+UTF-8 C/C++ 소스 파일을 한글이 포함된 PDF로 변환하는 Python 프로젝트입니다. 과목·과제 제목, 제출자, 파일명, 한글 주석과 문자열을 표시하며, 기존 코드 인쇄용 가로 2단 양식을 기준으로 출력합니다.
 
-이 프로젝트의 `submit`은 로컬 파일 시뮬레이션입니다. 학교 계정·설정·제출 경로를 사용하지 않습니다. 공개 라이선스가 확인되지 않은 학교 스크립트 원문도 포함하지 않습니다.
+PDF 생성기, 기존 제출 스크립트에 연결하는 함수, 선택적인 로컬 모의 제출 도구를 제공합니다.
 
-## 시작하기
+## 주요 기능
 
-Python 3.8 이상을 대상으로 작성했습니다. 터미널에서 이 프로젝트 디렉터리로 이동한 뒤 실행합니다.
+- 디렉터리 바로 아래의 `.c`, `.cpp`, `.h` 파일 처리
+- 한글 글꼴 포함, 줄 번호, C/C++ 문법 강조, 긴 줄 자동 줄바꿈
+- 가로 2단 테두리, 날짜·시각, 파일별 쪽 번호
+- PDF 생성 실패 시 기존 출력 파일 보존
+- 제출용 사본으로 PDF와 소스를 준비하고, 파일 교체 오류 시 이전 제출 복구
 
-macOS에서는 `run_demo.command`를 실행해도 됩니다. 첫 실행에는 가상환경과 의존성을 준비하고, 이후에는 데모 생성과 localhost 서버 실행을 수행합니다. 이미 8765 포트에서 시연 중이면 기존 페이지를 이용하세요.
+## 요구 환경
+
+- Python 3.8 이상
+- ReportLab `>=3.5.34,<5`
+- Pygments `>=2.3.1,<3`
+- 제출 연결 함수 `integration.py`: Linux/macOS (`fcntl.flock` 사용)
+
+생성기는 ReportLab으로 PDF를 직접 만듭니다. 포함된 Nanum Gothic Coding TTF 글꼴을 사용하며, 실행 패키지 버전 범위는 [requirements.txt](requirements.txt)에 있습니다.
+
+## 설치와 PDF 생성
+
+저장소 루트에서 실행합니다.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+python -m turnin_demo render ./examples \
+  --pdf output/preview.pdf \
+  --course "자료구조 과제" \
+  --submitter student01
+```
+
+결과는 `output/preview.pdf`에 저장됩니다. `./examples`를 소스 디렉터리로 바꾸면 다른 파일을 처리할 수 있습니다.
+
+입력은 UTF-8이며 UTF-8 BOM도 처리합니다. 잘못된 인코딩이나 포함 글꼴로 표시할 수 없는 문자는 오류로 알립니다. 원본 소스 파일은 수정하지 않습니다. PDF 표시에는 NFC 정규화와 탭 너비 8을 적용합니다.
+
+머리글은 `[과목·과제 제목] 제출자 : 파일명` 형식입니다. 제목과 제출자는 명령 인자로 전달하며, 계정 조회나 과목 선택은 연결하는 프로그램에서 담당합니다.
+
+## 로컬 시연과 모의 제출 (선택)
+
+예제로 PDF·검증 기록·미리보기 페이지를 생성합니다.
+
+```bash
 python -m turnin_demo demo
 python -m turnin_demo serve
 ```
 
-브라우저에서 <http://127.0.0.1:8765/demo/>를 엽니다. 종료는 `Ctrl+C`입니다. 서버를 실행하지 않고 `output/demo/index.html`을 브라우저로 열어도 됩니다. 브라우저의 로컬 PDF 미리보기 정책에 따라 “PDF 크게 보기”를 사용하세요.
+브라우저에서 <http://127.0.0.1:8765/demo/>를 엽니다. 종료는 `Ctrl+C`입니다. 생성된 `output/demo/index.html`을 직접 열 수도 있습니다.
 
-`demo`는 공개된 학번이나 실제 제출물이 없는 예제 2개로 다음 결과를 생성합니다.
-
-- `output/demo/index.html`: 제출 결과와 PDF 미리보기
-- `output/demo/hw.pdf`: 한글 과제명·주석·파일명, 줄 번호, 문법 강조, 2단 배치
-- `output/demo/receipt.json`: 원본 파일과 PDF의 SHA-256 해시
-- `output/demo/verification.json`: 잘못된 UTF-8 입력 거부와 이전 성공 제출 보존 검증
-- `output/demo/REPORT.md`: 진단 리포트 사본
-- `output/submissions/...`: 제출 버전과 현재 제출을 가리키는 `current.json`
-
-프로젝트에 포함된 NanumGothicCoding 글꼴을 PDF에 포함하므로, 이 시연은 서버에 설치된 Noto 글꼴이나 별도 브라우저 엔진에 의존하지 않습니다. 글꼴의 라이선스와 출처는 글꼴 디렉터리를 참고하세요.
-
-## 내 테스트 소스로 실행하기
-
-지정한 디렉터리 바로 아래의 `.c`, `.cpp`, `.h` 파일을 읽습니다. 기본 입력 인코딩은 UTF-8입니다. UTF-8로 해석할 수 없는 입력은 오류로 처리하며, 임의로 글자를 치환하지 않습니다.
-
-PDF만 만들기:
+다른 소스를 로컬 버전 폴더에 보관하려면 다음을 실행합니다.
 
 ```bash
-python -m turnin_demo render ./examples --pdf output/my-preview.pdf --course "자료구조 과제" --submitter demo-student
+python -m turnin_demo submit ./examples \
+  --output output \
+  --course "자료구조 과제" \
+  --submitter student01
 ```
 
-로컬 모의 제출하기:
+`submit`은 원본 소스·PDF·SHA-256 영수증을 새 버전으로 보관하고 `current.json`을 갱신합니다. 모의 제출자 ID는 영문·숫자로 시작하고 영문·숫자·`_`·`-`를 사용합니다. `demo`와 `submit`은 지정한 로컬 폴더에 결과를 저장합니다.
+
+## 기존 제출 프로그램에 연결
+
+PDF 생성기와 연결 함수에 필요한 파일만 묶습니다.
 
 ```bash
-python -m turnin_demo submit ./examples --output output --course "자료구조 과제" --submitter demo-student
+python3 tools/build_minimal.py
 ```
 
-제출자 ID는 영문·숫자로 시작하고 영문·숫자·`_`·`-`만 포함해야 합니다. 한글 과목명, 한글·공백이 포함된 소스 파일명은 지원합니다. 소스 심볼릭 링크는 거부합니다.
+`output/minimal/turnin-pdf.zip`에는 실행 모듈, 공용 글꼴, 의존성 목록, 연결 안내와 수정 사본 도구가 포함됩니다. 출력 ZIP이 이미 있으면 `--output`으로 새 경로를 지정합니다.
 
-각 제출은 원본 소스 바이트를 새 임시 폴더로 복사한 뒤 그 사본에서 PDF를 생성합니다. 생성과 영수증 저장이 모두 끝나면 새 버전 폴더를 확정하고 `current.json`을 원자적으로 교체합니다. 실패한 시도는 이전 성공 제출을 지우지 않습니다. 성공한 과거 버전도 자동 삭제하지 않습니다. 동시 제출 시 마지막 포인터 교체가 현재 버전이 되며, 각각의 성공한 버전은 남습니다.
+압축을 푼 뒤 `turnin_demo/`와 `assets/`를 형제 디렉터리로 유지합니다. 글꼴은 프로그램 공용 경로에 한 번 배치합니다. 기존 프로그램이 계산한 제목·로그인 계정·제출 경로를 연결 함수에 전달합니다.
 
-`demo`는 정상 제출 직후 잘못된 UTF-8 예제를 한 번 제출해 오류를 발생시킵니다. 그 뒤 `current.json`과 기존 PDF의 바이트가 같음을 확인하고 이 실제 검증 결과를 페이지에 표시합니다. 과목 설정 파일, 제출 마감 시각, 학교 계정 인증 및 운영 디렉터리 권한은 이 로컬 시연의 구현 범위에 포함하지 않습니다.
+아래 예제는 전체 개발 저장소 루트에서 실행합니다. 최소 ZIP만 사용한다면 `examples` 대신 별도로 준비한 소스 디렉터리를 지정합니다.
 
-## 교수님 또는 관리자에게 전달하기
+```python
+from pathlib import Path
+from turnin_demo.integration import submit_listing
 
-먼저 [REPORT.md](REPORT.md)의 근거와 한계를 읽고, 예제 소스 및 생성한 `hw.pdf`를 함께 검토하면 됩니다. 이 프로젝트는 기존 시스템과 별개인 시연용 구현이며, 운영 적용에는 실제 서버 환경에서 글꼴·Python 패키지·출력 레이아웃과 실패 동작을 확인하는 작업이 필요합니다.
+source = Path("examples")
+destination = Path("output/test-submissions/student01")
+destination.parent.mkdir(parents=True, exist_ok=True)
+pdf = submit_listing(source, destination, "자료구조 과제", "student01")
+```
 
-기여 자료에는 진단 리포트, 재현용 예제, PDF 생성 모듈, 실패 시 이전 제출을 보존하는 모의 구현, 실행 방법 및 테스트 결과를 포함할 수 있습니다. 원본 저장소와 라이선스가 확인되면 관리자의 방식에 맞춰 패치 또는 PR로 전달합니다. 실제 학생 제출물·학번·학교 설정 파일은 Git에 넣지 않습니다.
+함수는 대상 디렉터리에 원본 소스와 `hw.pdf`를 저장하고 PDF 경로를 반환합니다. 입력 폴더의 `hw.pdf`도 미리보기로 갱신하므로 입력 폴더에 쓰기 권한이 필요합니다. 소스와 대상 디렉터리는 서로 포함하지 않는 별도 경로여야 합니다. 대상 제출함의 상위 디렉터리는 미리 준비합니다.
 
-운영 적용안은 **PDF 생성 모듈과 글꼴을 작게 정리해 기존 `turnin`의 변환 부분에 연결하고, 기존 제출 양식에 맞추는 것**입니다. Enscript 1.6.5.90의 인코딩·출력 설정 변경 시험으로는 한글 문제가 해결되지 않아 이 방향을 선택했습니다. 시험 근거와 재빌드 방식과의 비교는 [REPORT.md의 3절](REPORT.md#3-기존-방식의-최소-수정-검토와-변환-방식-선택)에 있습니다.
+파일 수집은 `.c → .cpp → .h` 그룹 순서이며 그룹 안에서는 이름순입니다. 소스를 먼저 복사하고 그 사본에서 PDF를 생성합니다. 제출 교체 실패 시 이전 파일을 복구하고, 복구 오류가 나면 백업 경로를 알립니다. 기존의 보이는 일반 파일은 교체하며 숨김 파일은 유지합니다.
 
-2026-10-01 수정본은 한 줄 머리글·날짜·파일별 쪽 번호, 가로 2단 테두리, Courier 7pt 본문·8pt 줄 간격·콜론 줄 번호를 기존 PDF의 측정값에 맞췄습니다. 큰 제목과 `LOCAL DEMO` 꼬리글은 제거했습니다. 한글에는 포함된 Nanum 글꼴을 사용합니다. 양식 수정본은 로컬과 학교 서버에서 18개 검사를 통과했고, 서버에서 생성한 PDF 두 페이지의 한글·배치를 확인했습니다. 실제 제출 코드 연결과 운영 경로 검증은 남아 있습니다. 사용자 홈에서의 성공은 실제 제출 경로의 권한·복사 실패·이전 제출 복구까지 검증한 결과가 아닙니다. 운영 전 확인 범위는 [REPORT.md의 7절](REPORT.md#7-학교-시스템-연결과-제공-범위)을 참고하세요.
+원본을 보존한 수정 사본·diff 생성 방법, 실제 연결 위치와 권한 확인 사항은 [MINIMAL_PATCH.md](MINIMAL_PATCH.md)에 있습니다. 최소 ZIP에는 모의 제출 CLI와 검사 파일이 포함되지 않습니다.
 
 ## 검증
 
-프로젝트에 포함된 테스트는 다음 명령으로 실행합니다.
+전체 개발 저장소에서 실행합니다.
 
 ```bash
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ```
 
-PDF 화면에서는 과제명·파일명·주석이 정상적으로 보이는지, 두 열과 줄바꿈이 겹치지 않는지 확인합니다. PDF 뷰어에서 한글을 검색·복사해 보는 것도 확인 항목입니다. 해시 영수증은 제출 원본의 바이트 보존을 확인하는 용도이며, 디지털 서명은 아닙니다.
+| 환경 | 확인한 결과 |
+| --- | --- |
+| macOS arm64 / Python 3.12.14 / ReportLab 4.4.9 / Pygments 2.20.0 | 전체 37개 검사 통과, 배포 ZIP의 별도 실행 및 PDF 화면 확인 |
+| Ubuntu 20.04.6 x86_64 / Python 3.8.10 / ReportLab 3.5.34 / Pygments 2.3.1 | 전체 37개 검사 통과, 분리된 테스트 경로의 설정·계정 연결 및 PDF 화면 확인 |
+| macOS arm64 / Python 3.14.7 / ReportLab 4.5.1 / Pygments 2.21.0 | 새 가상환경에서 README 절차·전체 37개 검사·HTTP 5개 경로·최소 ZIP의 별도 실행 통과 |
 
-학교 서버에서 기존 설치 패키지로 시험하는 순서와 `pypdf`가 없을 때의 테스트 환경 준비 방법은 [REPORT.md의 8절](REPORT.md#8-지금-사용자-홈에서-실행할-서버-테스트)에 있습니다.
+검사는 한글 추출·글꼴 포함·양식·여러 파일과 페이지·실패 보존·복구·수정 호출 간 잠금·패치·배포를 포함합니다. Ubuntu의 연결 검증에는 취소·마감·정상 재제출·잘못된 UTF-8 입력 거부가 포함됩니다. 운영 제출 경로의 권한과 읽기 흐름은 별도 확인이 필요합니다.
 
-검증 범위는 환경별로 구분합니다.
+최근 로컬 실행 결과는 [TEST_REPORT.md](TEST_REPORT.md)에 정리했습니다.
 
-| 환경 | 확인한 결과 | 남은 확인 |
-| --- | --- | --- |
-| macOS, ReportLab 4.4.9, Pygments 2.20.0, pypdf 6.10.0 (2026-10-01 양식 수정본) | 기존 14개와 양식 검사 4개, 총 18개 통과. 수정 PDF 2쪽의 한글·배치와 한글 글꼴 포함 확인 | 아래 학교 환경에서도 같은 수정본 검증 완료. 운영 연결 후 검증은 별도 |
-| 학교 서버의 사용자 홈: Ubuntu 20.04.6 x86_64, Python 3.8.10, ReportLab 3.5.34, Pygments 2.3.1 | 양식 변경 전 14개에 이어 수정본 18개 모두 통과 (사용자 제공 로그, 0.921초). 서버 생성 `school-format.pdf` 2쪽의 한글·양식·글꼴 포함과 예제 내용 확인 | 기존 `turnin` 연결 패치와 운영 제출 연동·실패 복구 |
+## 적용 범위와 한계
 
-학교 서버의 PDF 생성은 기존 시스템 패키지로 실행했습니다. 자동 검사에 필요한 `pypdf 5.9.0`과 `typing_extensions 4.13.2`는 프로젝트의 `output/server-check/test-deps`에 설치해 사용했습니다. 현재 생성용 패키지를 업그레이드할 필요는 없습니다. 요구 버전의 하한은 확인한 서버 조합까지 포함하도록 조정했으며, 범위 안의 모든 버전 조합을 검증했다는 뜻은 아닙니다. 서버의 실제 과목 제출 디렉터리에는 적용하지 않았습니다.
+- 입력 소스의 심볼릭 링크와 일반 파일이 아닌 항목은 거부합니다.
+- 제목이 길면 머리글을 축소하며, 읽을 수 있는 최소 크기를 넘으면 오류로 처리합니다.
+- 글꼴과 문법 강조 방식 차이로 기존 출력과 줄바꿈·색상·쪽 수가 달라질 수 있습니다.
+- 잠금은 같은 연결 함수를 사용하는 제출끼리 적용됩니다. 다른 프로그램의 읽기는 교체 중 일부 파일을 볼 수 있습니다.
+- 파일 교체는 강제 종료·전원 장애까지 복구하는 트랜잭션이 아닙니다.
+- 작업 폴더의 미리보기 PDF 생성과 대상 폴더의 제출 성공은 별개입니다.
 
-## 기존 변환 경로 재현 (선택)
+설계 근거와 변환 방식 비교는 [REPORT.md](REPORT.md)에서 확인하실 수 있습니다. 선택적인 비교 도구는 `tools/reproduce_legacy.py`와 `tools/probe_noto_ps.py`입니다. 각 도구는 별도의 외부 프로그램과 시험 환경을 요구합니다.
 
-`enscript`와 `ps2pdf`가 설치된 별도 환경에서는 가짜 샘플로 기존 변환 단계만 실행할 수 있습니다.
+## 글꼴과 라이선스
 
-```bash
-python tools/reproduce_legacy.py "examples/한글 예제.cpp"
-```
+포함된 Nanum Gothic Coding Regular·Bold는 Google Fonts 배포본입니다. 글꼴에는 SIL Open Font License가 적용됩니다. 출처는 [SOURCE.md](assets/fonts/SOURCE.md), 이용 조건은 [OFL.txt](assets/fonts/OFL.txt)에 있습니다.
 
-`output/legacy/run-.../` 아래에 `hw.ps`, `hw.pdf`, 변환 로그를 보존합니다. 이 도구는 제출 디렉터리를 사용하지 않습니다. 2026-09-30 사용자가 학교 서버에서 이 명령을 실행했고, 제공한 PDF와 PS에서 기존 방식의 한글 처리 문제를 확인했습니다. 이후 같은 Enscript 버전을 로컬 임시 경로에 빌드해 설정 변경을 PS 출력 단계까지 시험했습니다. 서버 생성 개선 PDF의 한글 출력도 확인했으며, 환경별 증거와 한계는 `REPORT.md`에 기록했습니다.
-
-## 4번째 개발: 기존 Noto 글꼴 비교 시험
-
-2026-10-07 로컬에서 학교 Noto Sans CJK Regular TTC의 사본을 원래 CFF 형식 그대로 사용해 `Pango/Cairo → PDF`와 `Pango/Cairo → PS → ps2pdf`를 비교했습니다. 이 시험은 현재 `turnin_demo` 생성기를 교체하지 않는 작은 실험입니다. 학교 서버의 파일이나 설치 패키지는 변경하지 않았습니다.
-
-두 PDF 모두 한 페이지의 한글 화면 출력은 정상이었습니다. 동일한 6개 입력 행을 pypdf와 Poppler로 추출한 결과, 직접 PDF는 6/6, PS 경유 PDF는 3/6만 정확히 일치했습니다. PS 경유 결과에서는 일부 공백·콜론·마침표의 문자 매핑이 누락됐습니다. 상세 근거와 한계는 [REPORT.md의 9절](REPORT.md#9-4번째-개발-기존-noto-글꼴의-로컬-비교-시험)을 참고하세요.
-
-로컬에 준비한 글꼴 사본과 Ghostscript 9.50을 재사용하는 명령:
-
-```bash
-python3 tools/probe_noto_ps.py \
-  --output output/pdf/noto-probe \
-  --font-dir output/noto-probe/fonts \
-  --ps2pdf output/noto-probe/deps/ghostscript-9.50-local/bin/ps2pdf
-```
-
-`pango-view`, `fc-match`, `gs`, `ps2pdf`가 필요합니다. 시스템에 해당 Noto 글꼴이 설치돼 있다면 `--font-dir`를 생략할 수 있습니다. 지정한 글꼴 폴더는 시험 프로세스에서만 참조하며 시스템에 글꼴을 설치하지 않습니다. 학교에는 당시 `pango-view` 명령이 없었으므로 위 명령을 바로 실행할 수 있다고 보장하지 않습니다.
-
-명령은 `output/pdf/noto-probe/`에 `noto-direct.pdf`, `noto-via-ps.pdf`, `noto.ps`, `input.markup`, `probe.json`을 생성합니다. `verification.json`은 이번에 별도로 수행한 추출·화면 검토 기록이며, 이 명령이 자동 생성하지 않습니다. 글꼴 사본과 로컬 빌드 의존성·생성 결과는 모두 Git에서 제외되는 `output/` 아래에 둡니다. 이 6행 시험은 기존 학교 양식, 긴 소스, 여러 페이지, 운영 제출 연동 검증을 대신하지 않습니다.
+코드 라이선스는 아직 명시되지 않았습니다.
