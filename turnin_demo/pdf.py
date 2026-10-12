@@ -17,6 +17,8 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 
+# DEPLOY: turnin_demo/와 assets/fonts/를 같은 공용 배포 루트 아래에 둡니다.
+# 배치가 달라질 때만 이 경로를 조정하고 실행 계정의 TTF 읽기 권한을 확인합니다.
 FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 REGULAR = "TurninNanumRegular"
 BOLD = "TurninNanumBold"
@@ -188,7 +190,7 @@ def render_pdf(sources: list[Path], output: Path, course: str, submitter: str) -
     try:
         canvas = Canvas(str(temp_path), pagesize=(WIDTH, HEIGHT), pageCompression=1)
         canvas.setTitle(f"{course} - {submitter}")
-        canvas.setAuthor("Local mock submission")
+        canvas.setAuthor(submitter)
         canvas.setCreator("turnin-hangul-demo / ReportLab")
         timestamp = datetime.now().astimezone().strftime("%m/%d/%y %H:%M:%S")
         for filename, rows, page, total in pages:
